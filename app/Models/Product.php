@@ -158,6 +158,90 @@ class Product extends Model
     }
 
     /**
+     * Get total quantity in all carts
+     */
+    public function getTotalInCartsAttribute()
+    {
+        return $this->cartItems()->sum('quantity');
+    }
+
+    /**
+     * Get number of customers who have this product in cart
+     */
+    public function getCustomersWithProductAttribute()
+    {
+        return $this->cartItems()->distinct('customer_id')->count();
+    }
+
+    /**
+     * Check if customer has this product in cart
+     */
+    public function isInCustomerCart($customerId)
+    {
+        return $this->cartItems()->where('customer_id', $customerId)->exists();
+    }
+
+    /**
+     * Get quantity in specific customer's cart
+     */
+    public function getQuantityInCart($customerId)
+    {
+        $item = $this->cartItems()->where('customer_id', $customerId)->first();
+        return $item ? $item->quantity : 0;
+    }
+
+    /**
+     * Check if product can be added to cart (stock + availability)
+     */
+    public function canAddToCart($requestedQuantity = 1, $customerId = null)
+    {
+        if (!$this->is_active) {
+            return [
+                'can_add' => false,
+                'reason' => 'Product is not available'
+            ];
+        }
+
+        if (!$this->isInStock()) {
+            return [
+                'can_add' => false,
+                'reason' => 'Product is out of stock'
+            ];
+        }
+
+        $availableQuantity = $this->quantity;
+        
+        // If customer ID provided, account for existing cart quantity
+        if ($customerId) {
+            $existingInCart = $this->getQuantityInCart($customerId);
+            $totalRequested = $existingInCart + $requestedQuantity;
+            
+            if ($totalRequested > $availableQuantity) {
+                return [
+                    'can_add' => false,
+                    'reason' => "Insufficient stock. Available: {$availableQuantity}, Already in cart: {$existingInCart}",
+                    'available' => $availableQuantity,
+                    'in_cart' => $existingInCart,
+                    'max_additional' => max(0, $availableQuantity - $existingInCart)
+                ];
+            }
+        } else {
+            if ($requestedQuantity > $availableQuantity) {
+                return [
+                    'can_add' => false,
+                    'reason' => "Insufficient stock. Available: {$availableQuantity}",
+                    'available' => $availableQuantity
+                ];
+            }
+        }
+
+        return [
+            'can_add' => true,
+            'available' => $availableQuantity
+        ];
+    }
+
+    /**
      * Reduce stock quantity
      */
     public function reduceStock($quantity)

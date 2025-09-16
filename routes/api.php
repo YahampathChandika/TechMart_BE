@@ -71,6 +71,7 @@ Route::group(['prefix' => 'customer'], function () {
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\CartController;
 
 // Public product browsing
 Route::group(['prefix' => 'products'], function () {
@@ -137,12 +138,26 @@ Route::group(['prefix' => 'admin', 'middleware' => 'auth:api'], function () {
     });
 });
 
-// Shopping cart routes
+// Shopping cart routes (customer authentication required)
 Route::group(['prefix' => 'cart', 'middleware' => 'auth:customer'], function () {
-    Route::get('/', function () {
-        return response()->json(['message' => 'Cart items - coming in Phase 7']);
-    });
-    Route::post('/add', function () {
-        return response()->json(['message' => 'Add to cart - coming in Phase 7']);
-    });
+    // Cart viewing and summary
+    Route::get('/', [CartController::class, 'index']);
+    Route::get('/summary', [CartController::class, 'summary']);
+    Route::get('/count', [CartController::class, 'count']);
+    Route::get('/validate', [CartController::class, 'validateCart']);
+    
+    // Adding products to cart
+    Route::post('/add', [CartController::class, 'addToCart']);
+    Route::post('/quick-add', [CartController::class, 'quickAdd']);
+    
+    // Cart item management
+    Route::put('/items/{itemId}', [CartController::class, 'updateQuantity']);
+    Route::patch('/bulk-update', [CartController::class, 'bulkUpdate']);
+    Route::delete('/items/{itemId}', [CartController::class, 'removeItem']);
+    
+    // Cart operations
+    Route::delete('/clear', [CartController::class, 'clearCart']);
+    
+    // Product cart status
+    Route::get('/check-product/{productId}', [CartController::class, 'checkProduct']);
 });

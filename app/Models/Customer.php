@@ -106,4 +106,60 @@ class Customer extends Authenticatable implements JWTSubject
             return $item->quantity * $item->product->sell_price;
         });
     }
+
+    /**
+     * Add product to cart (convenience method)
+     */
+    public function addToCart($productId, $quantity = 1)
+    {
+        return ShoppingCart::addToCart($this->id, $productId, $quantity);
+    }
+
+    /**
+     * Remove product from cart
+     */
+    public function removeFromCart($productId)
+    {
+        return ShoppingCart::where('customer_id', $this->id)
+                          ->where('product_id', $productId)
+                          ->delete();
+    }
+
+    /**
+     * Check if product is in cart
+     */
+    public function hasInCart($productId)
+    {
+        return ShoppingCart::where('customer_id', $this->id)
+                          ->where('product_id', $productId)
+                          ->exists();
+    }
+
+    /**
+     * Get quantity of specific product in cart
+     */
+    public function getCartQuantity($productId)
+    {
+        $item = ShoppingCart::where('customer_id', $this->id)
+                           ->where('product_id', $productId)
+                           ->first();
+        
+        return $item ? $item->quantity : 0;
+    }
+
+    /**
+     * Clear entire cart
+     */
+    public function clearCart()
+    {
+        return ShoppingCart::clearCartForCustomer($this->id);
+    }
+
+    /**
+     * Get cart summary with details
+     */
+    public function getCartSummary()
+    {
+        return ShoppingCart::getCartSummary($this->id);
+    }
 }
