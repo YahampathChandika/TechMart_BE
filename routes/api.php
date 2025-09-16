@@ -4,6 +4,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CustomerAuthController;
+use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\CartController;
 
 /*
 |--------------------------------------------------------------------------
@@ -64,20 +68,29 @@ Route::group(['prefix' => 'customer'], function () {
 
 /*
 |--------------------------------------------------------------------------
-| Public Product Routes (Customer/Public Access)
+| Enhanced Public Product Routes (Customer/Public Access)
 |--------------------------------------------------------------------------
 */
 
-use App\Http\Controllers\Api\ProductController;
-use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\Api\CustomerController;
-use App\Http\Controllers\Api\CartController;
-
-// Public product browsing
+// Public product browsing with enhanced search
 Route::group(['prefix' => 'products'], function () {
     Route::get('/', [ProductController::class, 'index']);
     Route::get('/brands', [ProductController::class, 'brands']);
+    Route::get('/filters', [ProductController::class, 'getFilterOptions']);
+    Route::get('/search', [ProductController::class, 'advancedSearch']);
+    Route::post('/search', [ProductController::class, 'advancedSearch']); // For complex filter objects
     Route::get('/{id}', [ProductController::class, 'show']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Search Suggestion Routes (Public)
+|--------------------------------------------------------------------------
+*/
+
+Route::group(['prefix' => 'search'], function () {
+    Route::get('/suggestions', [ProductController::class, 'searchSuggestions']);
+    Route::get('/trending', [ProductController::class, 'trendingSearches']);
 });
 
 /*
@@ -89,11 +102,16 @@ Route::group(['prefix' => 'products'], function () {
 // Product management routes (admin/users with privileges)
 Route::group(['prefix' => 'admin', 'middleware' => 'auth:api'], function () {
     
-    // Product Management
+    // Enhanced Product Management
     Route::group(['prefix' => 'products'], function () {
-        // All authenticated users can view products
+        // All authenticated users can view products (enhanced with filters)
         Route::get('/', [ProductController::class, 'adminIndex']);
         Route::get('/statistics', [ProductController::class, 'statistics']);
+        Route::get('/analytics', [ProductController::class, 'analytics']);
+        Route::get('/filters', [ProductController::class, 'getFilterOptions']);
+        Route::get('/search', [ProductController::class, 'advancedSearch']);
+        Route::post('/search', [ProductController::class, 'advancedSearch']); // For complex admin searches
+        Route::get('/export', [ProductController::class, 'exportProducts']);
         Route::get('/{id}', [ProductController::class, 'show']);
         
         // Privilege-based product operations
@@ -103,6 +121,10 @@ Route::group(['prefix' => 'admin', 'middleware' => 'auth:api'], function () {
         Route::patch('/{id}/toggle-status', [ProductController::class, 'toggleStatus'])->middleware('privilege:can_update_products');
         Route::delete('/{id}', [ProductController::class, 'destroy'])->middleware('privilege:can_delete_products');
         Route::delete('/{id}/image', [ProductController::class, 'deleteImage'])->middleware('privilege:can_update_products');
+        
+        // Bulk operations (privilege-based)
+        Route::post('/bulk-update', [ProductController::class, 'bulkUpdate'])->middleware('privilege:can_update_products');
+        Route::post('/bulk-delete', [ProductController::class, 'bulkDelete'])->middleware('privilege:can_delete_products');
     });
     
     // User management (admin only)
@@ -138,7 +160,12 @@ Route::group(['prefix' => 'admin', 'middleware' => 'auth:api'], function () {
     });
 });
 
-// Shopping cart routes (customer authentication required)
+/*
+|--------------------------------------------------------------------------
+| Shopping Cart Routes (Customer Authentication Required)
+|--------------------------------------------------------------------------
+*/
+
 Route::group(['prefix' => 'cart', 'middleware' => 'auth:customer'], function () {
     // Cart viewing and summary
     Route::get('/', [CartController::class, 'index']);
