@@ -64,50 +64,56 @@ Route::group(['prefix' => 'customer'], function () {
 
 /*
 |--------------------------------------------------------------------------
-| Protected Admin/User Routes (Will add in next phases)
+| Public Product Routes (Customer/Public Access)
+|--------------------------------------------------------------------------
+*/
+
+use App\Http\Controllers\Api\ProductController;
+
+// Public product browsing
+Route::group(['prefix' => 'products'], function () {
+    Route::get('/', [ProductController::class, 'index']);
+    Route::get('/brands', [ProductController::class, 'brands']);
+    Route::get('/{id}', [ProductController::class, 'show']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Protected Admin/User Routes
 |--------------------------------------------------------------------------
 */
 
 // Product management routes (admin/users with privileges)
 Route::group(['prefix' => 'admin', 'middleware' => 'auth:api'], function () {
-    // Products
+    
+    // Product Management
     Route::group(['prefix' => 'products'], function () {
-        Route::get('/', function () {
-            return response()->json(['message' => 'Product list endpoint - coming in Phase 5']);
-        });
-        Route::post('/', function () {
-            return response()->json(['message' => 'Create product endpoint - coming in Phase 5']);
-        })->middleware('privilege:can_add_products');
+        // All authenticated users can view products
+        Route::get('/', [ProductController::class, 'adminIndex']);
+        Route::get('/statistics', [ProductController::class, 'statistics']);
+        Route::get('/{id}', [ProductController::class, 'show']);
+        
+        // Privilege-based product operations
+        Route::post('/', [ProductController::class, 'store'])->middleware('privilege:can_add_products');
+        Route::post('/{id}', [ProductController::class, 'update'])->middleware('privilege:can_update_products');
+        Route::put('/{id}', [ProductController::class, 'update'])->middleware('privilege:can_update_products');
+        Route::patch('/{id}/toggle-status', [ProductController::class, 'toggleStatus'])->middleware('privilege:can_update_products');
+        Route::delete('/{id}', [ProductController::class, 'destroy'])->middleware('privilege:can_delete_products');
+        Route::delete('/{id}/image', [ProductController::class, 'deleteImage'])->middleware('privilege:can_update_products');
     });
     
-    // User management (admin only)
+    // User management (admin only) - Phase 6
     Route::group(['prefix' => 'users', 'middleware' => 'role:admin'], function () {
         Route::get('/', function () {
             return response()->json(['message' => 'User list endpoint - coming in Phase 6']);
         });
     });
     
-    // Customer management (admin/users)
+    // Customer management (admin/users) - Phase 6
     Route::group(['prefix' => 'customers', 'middleware' => 'role:any'], function () {
         Route::get('/', function () {
             return response()->json(['message' => 'Customer list endpoint - coming in Phase 6']);
         });
-    });
-});
-
-/*
-|--------------------------------------------------------------------------
-| Public Customer Routes (Will add in next phases)
-|--------------------------------------------------------------------------
-*/
-
-// Public product browsing
-Route::group(['prefix' => 'products'], function () {
-    Route::get('/', function () {
-        return response()->json(['message' => 'Public product list - coming in Phase 5']);
-    });
-    Route::get('/{id}', function ($id) {
-        return response()->json(['message' => "Product details for ID: $id - coming in Phase 5"]);
     });
 });
 
