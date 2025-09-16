@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\CartController;
+use App\Http\Controllers\Api\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,6 +46,17 @@ Route::group(['prefix' => 'auth'], function () {
         Route::get('/profile', [AuthController::class, 'profile']);
         Route::put('/profile', [AuthController::class, 'updateProfile']);
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Dashboard Routes (Admin/User Access)
+|--------------------------------------------------------------------------
+*/
+
+Route::group(['prefix' => 'dashboard', 'middleware' => 'auth:api'], function () {
+    Route::get('/stats', [DashboardController::class, 'getStats']);
+    Route::get('/recent-activities', [DashboardController::class, 'getRecentActivities']);
 });
 
 /*
