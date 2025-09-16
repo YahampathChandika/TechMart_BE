@@ -69,6 +69,8 @@ Route::group(['prefix' => 'customer'], function () {
 */
 
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\CustomerController;
 
 // Public product browsing
 Route::group(['prefix' => 'products'], function () {
@@ -102,18 +104,36 @@ Route::group(['prefix' => 'admin', 'middleware' => 'auth:api'], function () {
         Route::delete('/{id}/image', [ProductController::class, 'deleteImage'])->middleware('privilege:can_update_products');
     });
     
-    // User management (admin only) - Phase 6
+    // User management (admin only)
     Route::group(['prefix' => 'users', 'middleware' => 'role:admin'], function () {
-        Route::get('/', function () {
-            return response()->json(['message' => 'User list endpoint - coming in Phase 6']);
-        });
+        Route::get('/', [UserController::class, 'index']);
+        Route::get('/statistics', [UserController::class, 'statistics']);
+        Route::get('/{id}', [UserController::class, 'show']);
+        Route::post('/', [UserController::class, 'store']);
+        Route::put('/{id}', [UserController::class, 'update']);
+        Route::patch('/{id}/toggle-status', [UserController::class, 'toggleStatus']);
+        Route::delete('/{id}', [UserController::class, 'destroy']);
+        
+        // User privilege management
+        Route::get('/{id}/privileges', [UserController::class, 'getPrivileges']);
+        Route::put('/{id}/privileges', [UserController::class, 'updatePrivileges']);
     });
     
-    // Customer management (admin/users) - Phase 6
+    // Customer management (admin/users can access)
     Route::group(['prefix' => 'customers', 'middleware' => 'role:any'], function () {
-        Route::get('/', function () {
-            return response()->json(['message' => 'Customer list endpoint - coming in Phase 6']);
-        });
+        Route::get('/', [CustomerController::class, 'index']);
+        Route::get('/statistics', [CustomerController::class, 'statistics']);
+        Route::get('/top-customers', [CustomerController::class, 'topCustomers']);
+        Route::get('/export', [CustomerController::class, 'export']);
+        Route::get('/{id}', [CustomerController::class, 'show']);
+        Route::post('/', [CustomerController::class, 'store']);
+        Route::put('/{id}', [CustomerController::class, 'update']);
+        Route::patch('/{id}/toggle-status', [CustomerController::class, 'toggleStatus']);
+        Route::delete('/{id}', [CustomerController::class, 'destroy']);
+        
+        // Customer cart management
+        Route::get('/{id}/cart', [CustomerController::class, 'getCart']);
+        Route::delete('/{id}/cart', [CustomerController::class, 'clearCart']);
     });
 });
 

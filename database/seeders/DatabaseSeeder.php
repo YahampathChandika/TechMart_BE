@@ -14,7 +14,9 @@ class DatabaseSeeder extends Seeder
     public function run()
     {
         $this->call([
-            ProductSeeder::class,
+            UserSeeder::class,      // Users first (needed for product creation)
+            ProductSeeder::class,   // Products second (needed for cart items)
+            CustomerSeeder::class,  // Customers last (creates cart items)
         ]);
     }
 }
