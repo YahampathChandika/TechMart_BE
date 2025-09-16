@@ -2,14 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
-class User extends Authenticatable implements JWTSubject
+class Customer extends Authenticatable implements JWTSubject
 {
     use HasApiTokens, HasFactory, Notifiable;
 
@@ -24,7 +23,6 @@ class User extends Authenticatable implements JWTSubject
         'email',
         'contact',
         'password',
-        'role',
         'is_active',
     ];
 
@@ -44,7 +42,6 @@ class User extends Authenticatable implements JWTSubject
      * @var array<string, string>
      */
     protected $casts = [
-        'email_verified_at' => 'datetime',
         'is_active' => 'boolean',
     ];
 
@@ -69,23 +66,7 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
-     * Check if user is admin
-     */
-    public function isAdmin()
-    {
-        return $this->role === 'admin';
-    }
-
-    /**
-     * Check if user is regular user
-     */
-    public function isUser()
-    {
-        return $this->role === 'user';
-    }
-
-    /**
-     * Get user's full name
+     * Get customer's full name
      */
     public function getFullNameAttribute()
     {
@@ -93,58 +74,36 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
-     * Relationship: User has one privilege record
+     * Relationship: Customer has many cart items
      */
-    public function privileges()
+    public function cartItems()
     {
-        return $this->hasOne(UserPrivilege::class);
+        return $this->hasMany(ShoppingCart::class);
     }
 
     /**
-     * Relationship: User creates many products
+     * Get customer's cart with product details
      */
-    public function products()
+    public function cartWithProducts()
     {
-        return $this->hasMany(Product::class, 'created_by');
+        return $this->cartItems()->with('product');
     }
 
     /**
-     * Check if user has specific privilege
+     * Get total cart items count
      */
-    public function hasPrivilege($privilege)
+    public function getCartItemsCountAttribute()
     {
-        if ($this->isAdmin()) {
-            return true; // Admins have all privileges
-        }
-
-        if (!$this->privileges) {
-            return false;
-        }
-
-        return $this->privileges->$privilege ?? false;
+        return $this->cartItems()->sum('quantity');
     }
 
     /**
-     * Check if user can add products
+     * Get total cart value
      */
-    public function canAddProducts()
+    public function getCartTotalAttribute()
     {
-        return $this->hasPrivilege('can_add_products');
-    }
-
-    /**
-     * Check if user can update products
-     */
-    public function canUpdateProducts()
-    {
-        return $this->hasPrivilege('can_update_products');
-    }
-
-    /**
-     * Check if user can delete products
-     */
-    public function canDeleteProducts()
-    {
-        return $this->hasPrivilege('can_delete_products');
+        return $this->cartItems()->with('product')->get()->sum(function ($item) {
+            return $item->quantity * $item->product->sell_price;
+        });
     }
 }
