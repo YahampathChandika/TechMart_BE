@@ -87,6 +87,290 @@ class ProductController extends Controller
     }
 
     /**
+     * Store a newly created product
+     */
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'brand' => 'required|string|max:100',
+            'category' => 'nullable|string|max:100',
+            'buy_price' => 'required|numeric|min:0',
+            'sell_price' => 'required|numeric|min:0',
+            'quantity' => 'required|integer|min:0',
+            'rating' => 'nullable|numeric|min:0|max:5',
+            'is_active' => 'boolean',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $productData = [
+                'name' => $request->name,
+                'description' => $request->description,
+                'brand' => $request->brand,
+                'category' => $request->category,
+                'cost_price' => $request->buy_price, // Map buy_price to cost_price
+                'sell_price' => $request->sell_price,
+                'quantity' => $request->quantity,
+                'rating' => $request->rating ?? 0,
+            ];
+
+            // Set default values
+            $productData['is_active'] = $request->get('is_active', true);
+            $productData['created_by'] = auth('api')->id();
+
+            // Handle image upload if provided
+            if ($request->hasFile('image')) {
+                $image = $request->file('image');
+                $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+                
+                // Store in public/images/products directory
+                $imagePath = $image->storeAs('images/products', $imageName, 'public');
+                $productData['image_url'] = 'storage/' . $imagePath;
+            }
+
+            $product = Product::create($productData);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product created successfully',
+                'data' => [
+                    'product' => $product->load('creator:id,first_name,last_name')
+                ]
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create product',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update the specified product
+     */
+    public function update(Request $request, $id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found'
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'brand' => 'required|string|max:100',
+            'category' => 'nullable|string|max:100',
+            'buy_price' => 'required|numeric|min:0',
+            'sell_price' => 'required|numeric|min:0',
+            'quantity' => 'required|integer|min:0',
+            'rating' => 'nullable|numeric|min:0|max:5',
+            'is_active' => 'boolean',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $productData = [
+                'name' => $request->name,
+                'description' => $request->description,
+                'brand' => $request->brand,
+                'category' => $request->category,
+                'cost_price' => $request->buy_price, // Map buy_price to cost_price
+                'sell_price' => $request->sell_price,
+                'quantity' => $request->quantity,
+                'rating' => $request->rating ?? 0,
+            ];
+
+            // Handle is_active
+            if ($request->has('is_active')) {
+                $productData['is_active'] = $request->get('is_active');
+            }
+
+            // Handle image upload if provided
+            if ($request->hasFile('image')) {
+                // Delete old image if exists
+                if ($product->image_url && Storage::disk('public')->exists(str_replace('storage/', '', $product->image_url))) {
+                    Storage::disk('public')->delete(str_replace('storage/', '', $product->image_url));
+                }
+
+                $image = $request->file('image');
+                $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+                
+                // Store in public/images/products directory
+                $imagePath = $image->storeAs('images/products', $imageName, 'public');
+                $productData['image_url'] = 'storage/' . $imagePath;
+            }
+
+            $product->update($productData);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product updated successfully',
+                'data' => [
+                    'product' => $product->fresh()->load('creator:id,first_name,last_name')
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update product',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove the specified product from storage
+     */
+    public function destroy($id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found'
+            ], 404);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Check if product is in any carts
+            $cartCount = $product->cartItems()->count();
+            if ($cartCount > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Cannot delete product. It's currently in {$cartCount} shopping cart(s). Please remove it from all carts first."
+                ], 400);
+            }
+
+            // Delete associated image if exists
+            if ($product->image_url && Storage::disk('public')->exists(str_replace('storage/', '', $product->image_url))) {
+                Storage::disk('public')->delete(str_replace('storage/', '', $product->image_url));
+            }
+
+            $product->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product deleted successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete product',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle product active status
+     */
+    public function toggleStatus($id)
+    {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Product not found'
+            ], 404);
+        }
+
+        try {
+            $product->update([
+                'is_active' => !$product->is_active
+            ]);
+
+            $status = $product->is_active ? 'activated' : 'deactivated';
+
+            return response()->json([
+                'success' => true,
+                'message' => "Product {$status} successfully",
+                'data' => [
+                    'product' => $product->fresh()->load('creator:id,first_name,last_name')
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to toggle product status',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get products statistics for admin dashboard
+     */
+    public function statistics()
+    {
+        $stats = [
+            'total' => Product::count(),
+            'active' => Product::where('is_active', true)->count(),
+            'inactive' => Product::where('is_active', false)->count(),
+            'out_of_stock' => Product::where('quantity', 0)->count(),
+            'low_stock' => Product::where('quantity', '>', 0)->where('quantity', '<=', 10)->count(),
+            'high_stock' => Product::where('quantity', '>', 50)->count(),
+            'total_value' => Product::where('is_active', true)->sum(DB::raw('sell_price * quantity')),
+            'avg_price' => Product::where('is_active', true)->avg('sell_price'),
+            'avg_rating' => Product::where('is_active', true)->where('rating', '>', 0)->avg('rating'),
+            'brands_count' => Product::distinct('brand')->count(),
+            'categories_count' => Product::whereNotNull('category')->distinct('category')->count(),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product statistics retrieved successfully',
+            'data' => $stats
+        ]);
+    }
+
+    /**
      * Apply comprehensive search filters to the query
      */
     private function applySearchFilters($query, Request $request, $isAdmin = false)
@@ -360,14 +644,27 @@ class ProductController extends Controller
         try {
             $product = Product::with('creator:id,first_name,last_name')
                              ->where('id', $id)
-                             ->where('is_active', true)
                              ->first();
 
             if (!$product) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Product not found or inactive',
+                    'message' => 'Product not found',
                 ], 404);
+            }
+
+            // For admin endpoints, include extra data
+            if (request()->is('api/admin/*')) {
+                $product->cart_count = $product->cartItems()->count();
+                $product->total_in_carts = $product->cartItems()->sum('quantity');
+            } else {
+                // For public endpoints, only show active products
+                if (!$product->is_active) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Product not found or inactive',
+                    ], 404);
+                }
             }
 
             return response()->json([
