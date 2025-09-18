@@ -126,13 +126,20 @@ Route::group(['prefix' => 'admin', 'middleware' => 'auth:api'], function () {
         Route::get('/export', [ProductController::class, 'exportProducts']);
         Route::get('/{id}', [ProductController::class, 'show']);
         
-        // Privilege-based product operations
+        // Product creation and updates - CONFIGURED FOR IMAGE UPLOADS
+        // Use POST for creating products (supports FormData with images)
         Route::post('/', [ProductController::class, 'store'])->middleware('privilege:can_add_products');
+        
+        // Use POST for updating products with images (FormData + _method=PUT)
+        // This route handles FormData requests with file uploads
         Route::post('/{id}', [ProductController::class, 'update'])->middleware('privilege:can_update_products');
+        
+        // Use PUT for JSON-only updates (no file uploads)
         Route::put('/{id}', [ProductController::class, 'update'])->middleware('privilege:can_update_products');
+        
+        // Other product operations
         Route::patch('/{id}/toggle-status', [ProductController::class, 'toggleStatus'])->middleware('privilege:can_update_products');
         Route::delete('/{id}', [ProductController::class, 'destroy'])->middleware('privilege:can_delete_products');
-        Route::delete('/{id}/image', [ProductController::class, 'deleteImage'])->middleware('privilege:can_update_products');
         
         // Bulk operations (privilege-based)
         Route::post('/bulk-update', [ProductController::class, 'bulkUpdate'])->middleware('privilege:can_update_products');

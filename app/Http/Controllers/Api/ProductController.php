@@ -96,12 +96,12 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'brand' => 'required|string|max:100',
             'category' => 'nullable|string|max:100',
-            'buy_price' => 'required|numeric|min:0',
+            'cost_price' => 'required|numeric|min:0',
             'sell_price' => 'required|numeric|min:0',
             'quantity' => 'required|integer|min:0',
             'rating' => 'nullable|numeric|min:0|max:5',
-            'is_active' => 'boolean',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'is_active' => 'nullable|string', // Changed to handle FormData
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120', // Added webp, increased size
         ]);
 
         if ($validator->fails()) {
@@ -120,14 +120,19 @@ class ProductController extends Controller
                 'description' => $request->description,
                 'brand' => $request->brand,
                 'category' => $request->category,
-                'cost_price' => $request->buy_price, // Map buy_price to cost_price
+                'cost_price' => $request->cost_price,
                 'sell_price' => $request->sell_price,
                 'quantity' => $request->quantity,
-                'rating' => $request->rating ?? 0,
+                'rating' => $request->rating ?? 1,
             ];
 
-            // Set default values
-            $productData['is_active'] = $request->get('is_active', true);
+            // Handle is_active (FormData sends as string)
+            if ($request->has('is_active')) {
+                $productData['is_active'] = $request->get('is_active') === '1' || $request->get('is_active') === true;
+            } else {
+                $productData['is_active'] = true;
+            }
+
             $productData['created_by'] = auth('api')->id();
 
             // Handle image upload if provided
@@ -137,7 +142,7 @@ class ProductController extends Controller
                 
                 // Store in public/images/products directory
                 $imagePath = $image->storeAs('images/products', $imageName, 'public');
-                $productData['image_url'] = 'storage/' . $imagePath;
+                $productData['image_path'] = 'storage/' . $imagePath; // Changed to image_path
             }
 
             $product = Product::create($productData);
@@ -177,17 +182,20 @@ class ProductController extends Controller
             ], 404);
         }
 
+        // Handle Laravel's _method field for FormData requests
+        $isFormData = $request->has('_method') && $request->get('_method') === 'PUT';
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'brand' => 'required|string|max:100',
             'category' => 'nullable|string|max:100',
-            'buy_price' => 'required|numeric|min:0',
+            'cost_price' => 'required|numeric|min:0',
             'sell_price' => 'required|numeric|min:0',
             'quantity' => 'required|integer|min:0',
             'rating' => 'nullable|numeric|min:0|max:5',
-            'is_active' => 'boolean',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'is_active' => $isFormData ? 'nullable|string' : 'nullable|boolean',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
         ]);
 
         if ($validator->fails()) {
@@ -206,22 +214,28 @@ class ProductController extends Controller
                 'description' => $request->description,
                 'brand' => $request->brand,
                 'category' => $request->category,
-                'cost_price' => $request->buy_price, // Map buy_price to cost_price
+                'cost_price' => $request->cost_price,
                 'sell_price' => $request->sell_price,
                 'quantity' => $request->quantity,
-                'rating' => $request->rating ?? 0,
+                'rating' => $request->rating ?? 1,
             ];
 
-            // Handle is_active
+            // Handle is_active (different handling for FormData vs JSON)
             if ($request->has('is_active')) {
-                $productData['is_active'] = $request->get('is_active');
+                if ($isFormData) {
+                    // FormData - convert string to boolean
+                    $productData['is_active'] = $request->get('is_active') === '1';
+                } else {
+                    // JSON - direct boolean
+                    $productData['is_active'] = $request->get('is_active');
+                }
             }
 
             // Handle image upload if provided
             if ($request->hasFile('image')) {
                 // Delete old image if exists
-                if ($product->image_url && Storage::disk('public')->exists(str_replace('storage/', '', $product->image_url))) {
-                    Storage::disk('public')->delete(str_replace('storage/', '', $product->image_url));
+                if ($product->image_path && Storage::disk('public')->exists(str_replace('storage/', '', $product->image_path))) {
+                    Storage::disk('public')->delete(str_replace('storage/', '', $product->image_path));
                 }
 
                 $image = $request->file('image');
@@ -229,7 +243,7 @@ class ProductController extends Controller
                 
                 // Store in public/images/products directory
                 $imagePath = $image->storeAs('images/products', $imageName, 'public');
-                $productData['image_url'] = 'storage/' . $imagePath;
+                $productData['image_path'] = 'storage/' . $imagePath; // Changed to image_path
             }
 
             $product->update($productData);
@@ -282,8 +296,8 @@ class ProductController extends Controller
             }
 
             // Delete associated image if exists
-            if ($product->image_url && Storage::disk('public')->exists(str_replace('storage/', '', $product->image_url))) {
-                Storage::disk('public')->delete(str_replace('storage/', '', $product->image_url));
+            if ($product->image_path && Storage::disk('public')->exists(str_replace('storage/', '', $product->image_path))) {
+                Storage::disk('public')->delete(str_replace('storage/', '', $product->image_path));
             }
 
             $product->delete();

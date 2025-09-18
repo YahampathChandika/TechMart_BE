@@ -348,7 +348,7 @@ class Product extends Model
     }
 
     /**
-     * Get full image URL (enhanced)
+     * Get full image URL (FIXED for proper image_path handling)
      */
     public function getImageUrlAttribute()
     {
@@ -361,9 +361,20 @@ class Product extends Model
             return $this->image_path;
         }
         
-        // Check if file exists in storage
-        if (Storage::disk('public')->exists($this->image_path)) {
-            return Storage::url($this->image_path);
+        // Handle paths that start with 'storage/' (our controller saves them this way)
+        if (str_starts_with($this->image_path, 'storage/')) {
+            // Extract the path after 'storage/'
+            $relativePath = str_replace('storage/', '', $this->image_path);
+            
+            // Check if file exists in storage
+            if (Storage::disk('public')->exists($relativePath)) {
+                return asset($this->image_path); // Return full path with 'storage/' prefix
+            }
+        } else {
+            // Handle direct paths (fallback for older data)
+            if (Storage::disk('public')->exists($this->image_path)) {
+                return Storage::url($this->image_path);
+            }
         }
         
         // Return placeholder if file doesn't exist
